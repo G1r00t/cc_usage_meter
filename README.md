@@ -5,8 +5,13 @@ A live readout of your Claude usage quota inside Claude Code — how much of the
 and what the session has cost.
 
 ```
-  ? for shortcuts                        5h 42% · 2h13m  ctx 38%  $1.24
+  ? for shortcuts                        7d 4% · 1d1h  ctx 9%  $1.53
 ```
+
+It draws **whichever quota windows your plan actually reports**. Some plans
+report the 5-hour window and the weekly one; some report only the weekly one.
+Pinning the readout to `five_hour` is how you end up with a line carrying no
+quota at all, so both renderers take what they are given and label it.
 
 It ships **two renderers over one set of figures**, because the corner placement
 depends on a feature flag that is not on for every account yet:
@@ -56,7 +61,9 @@ the mod and epoch seconds for the status line. Do not copy a formula across.
 - on API-key, Bedrock or Vertex auth — the windows are a subscription signal,
 - for `context.percent`, right after a compaction, until the next response.
 
-Both renderers drop the part rather than print a `0%`.
+A window your plan does not report is simply not in there. Both renderers drop
+the part rather than print a `0%`, and draw nothing at all rather than a line of
+placeholders.
 
 ## Install
 
@@ -116,12 +123,19 @@ bars, the context window in tokens, and the session cost.
 
 ```sh
 claude plugin validate .      # reads the manifest and module as the engine will
-claude plugin test .          # runs tests/*.test.ts (needs the flag on)
+node scripts/check.mjs        # the formatting logic, no engine needed
+claude plugin test .          # the full suite (refused while the flag is off)
 tsc -p .                      # once the engine has laid down .claude-plugin/types/
 ```
 
-The pure formatting functions are exported from `hooks/register.tsx`, so most of
-the behaviour is testable without mounting anything.
+The formatting functions are exported from `hooks/register.tsx`, so most of the
+behaviour is testable without mounting anything. `scripts/check.mjs` lifts them
+out and runs them under plain Node, which matters because `claude plugin test`
+refuses to run on exactly the machines where the flag is off.
+
+To see a real status-line payload, point `statusLine.command` at a script that
+tees stdin to a file. That is how the weekly-only case above was found — worth
+doing before trusting any field name.
 
 ## Licence
 

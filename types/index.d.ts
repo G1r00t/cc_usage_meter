@@ -1,16 +1,20 @@
+/** One quota window as `session.measure` reported it. */
+export type MeterWindow = {
+  /** `five_hour`, `seven_day`, or a Claude gateway's `spend_limit`. */
+  kind: string
+  /** How much of the window is used, 0-100. */
+  pct: number
+  /** ISO 8601 timestamp the window resets at; null when the engine gave none. */
+  resetsAt: string | null
+}
+
 /**
- * The one reading the meter draws from, as `session.measure` last reported it.
- * Every figure is nullable: the engine leaves one out rather than zeroing it.
+ * The reading the meter draws from, as `session.measure` last reported it.
+ * Figures the engine leaves out stay out: they are never zeroed.
  */
 export type Meter = {
-  /** Percent of the 5-hour window used, 0-100; null before the first reading. */
-  fiveHourPct: number | null
-  /** ISO 8601 timestamp the 5-hour window resets at. */
-  fiveHourResetsAt: string | null
-  /** Percent of the 7-day window used, 0-100. */
-  sevenDayPct: number | null
-  /** ISO 8601 timestamp the 7-day window resets at. */
-  sevenDayResetsAt: string | null
+  /** Every window the engine reported; empty before the first reading. */
+  windows: MeterWindow[]
   /** Percent of the model's context window filled, 0-100. */
   ctxPct: number | null
   /** What this session has cost so far, in US dollars. */

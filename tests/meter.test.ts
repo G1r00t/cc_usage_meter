@@ -1,15 +1,31 @@
 import { test, expect } from 'claude-code/testing'
 
-import { buildLabel, fmtPct, fmtRemaining } from '../hooks/register'
+import {
+  bandOf,
+  buildLabel,
+  fmtPct,
+  fmtRemaining,
+  orderedWindows,
+  worstPct,
+} from '../hooks/register'
 
 const NOW = Date.parse('2026-10-05T12:00:00Z')
-const iso = (minutesFromNow: number) => new Date(NOW + minutesFromNow * 60_000).toISOString()
+const iso = (minutesFromNow: number) =>
+  new Date(NOW + minutesFromNow * 60_000).toISOString()
 
-const READING = {
-  fiveHourPct: 42,
-  fiveHourResetsAt: iso(133),
-  sevenDayPct: 31,
-  sevenDayResetsAt: iso(60 * 98),
+/** What this account actually reports: the weekly window and nothing else. */
+const WEEKLY_ONLY = {
+  windows: [{ kind: 'seven_day', pct: 4, resetsAt: iso(60 * 25 + 46) }],
+  ctxPct: 9,
+  costUsd: 1.5269544,
+}
+
+/** A plan that reports both, handed over in the wrong order on purpose. */
+const BOTH = {
+  windows: [
+    { kind: 'seven_day', pct: 31, resetsAt: iso(60 * 98) },
+    { kind: 'five_hour', pct: 42, resetsAt: iso(133) },
+  ],
   ctxPct: 38,
   costUsd: 1.24,
 }
@@ -36,35 +52,40 @@ test('a countdown with nothing to count is left out, never faked', () => {
   expect(fmtRemaining('not a timestamp', NOW)).toBe(null)
 })
 
-test('the corner line carries the window, the context and the cost', () => {
-  expect(buildLabel(READING, NOW)).toBe('5h 42% · 2h13m  ctx 38%  $1.24')
+test('an account reporting only the weekly window still gets a readout', () => {
+  // The regression this guards: pinning the line to five_hour drew no quota at
+  // all on a plan that reports seven_day alone.
+  expect(buildLabel(WEEKLY_ONLY, NOW)).toBe('7d 4% · 1d1h  ctx 9%  $1.53')
+})
+
+test('windows draw in a fixed order however they arrive', () => {
+  expect(buildLabel(BOTH, NOW)).toBe('5h 42% · 2h13m  7d 31% · 4d2h  ctx 38%  $1.24')
+  expect(orderedWindows(BOTH).map(one => one.kind)).toEqual(['five_hour', 'seven_day'])
+})
+
+test('a window kind we have no name for is still drawn', () => {
+  const reading = { ...WEEKLY_ONLY, windows: [{ kind: 'mystery', pct: 7, resetsAt: null }] }
+  expect(buildLabel(reading, NOW)).toBe('mystery 7%  ctx 9%  $1.53')
 })
 
 test('a missing figure drops its part instead of showing a zero', () => {
-  expect(buildLabel({ ...READING, fiveHourPct: null, fiveHourResetsAt: null }, NOW)).toBe(
-    'ctx 38%  $1.24',
-  )
-  expect(buildLabel({ ...READING, ctxPct: null }, NOW)).toBe('5h 42% · 2h13m  $1.24')
-  expect(buildLabel({ ...READING, fiveHourResetsAt: null }, NOW)).toBe(
-    '5h 42%  ctx 38%  $1.24',
-  )
+  expect(buildLabel({ windows: [], ctxPct: 9, costUsd: 1.53 }, NOW)).toBe('ctx 9%  $1.53')
+  expect(buildLabel({ ...WEEKLY_ONLY, ctxPct: null }, NOW)).toBe('7d 4% · 1d1h  $1.53')
+  expect(
+    buildLabel({ ...WEEKLY_ONLY, windows: [{ kind: 'seven_day', pct: 4, resetsAt: null }] }, NOW),
+  ).toBe('7d 4%  ctx 9%  $1.53')
 })
 
 test('nothing to report draws nothing at all', () => {
   expect(buildLabel(null, NOW)).toBe(null)
-  expect(
-    buildLabel(
-      {
-        fiveHourPct: null,
-        fiveHourResetsAt: null,
-        sevenDayPct: null,
-        sevenDayResetsAt: null,
-        ctxPct: null,
-        costUsd: null,
-      },
-      NOW,
-    ),
-  ).toBe(null)
+  expect(buildLabel({ windows: [], ctxPct: null, costUsd: null }, NOW)).toBe(null)
+})
+
+test('the colour follows whichever window is furthest along', () => {
+  expect(worstPct(BOTH)).toBe(42)
+  expect(worstPct({ windows: [], ctxPct: null, costUsd: null })).toBe(null)
+  expect([bandOf(79.9), bandOf(80), bandOf(94), bandOf(95)]).toEqual([0, 1, 1, 2])
+  expect(bandOf(null)).toBe(0)
 })
 
 test('the footer slot keeps the engine modes when there is no reading', async $ => {
@@ -77,7 +98,7 @@ test('the footer slot keeps the engine modes when there is no reading', async $ 
     })
 
     expect(await ui.find({ type: 'Text', text: /focus/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /5h/ })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /ctx/ })).toBeUndefined()
 
     await ui.unmount()
   }

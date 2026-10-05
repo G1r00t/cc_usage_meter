@@ -8,9 +8,10 @@ to the right-hand edge -- that placement needs the function-hook mod beside
 this file.
 
 Fields we read (see README for the full stdin shape):
-  rate_limits.five_hour.used_percentage   0-100, one decimal; key absent until
-  rate_limits.five_hour.resets_at         the first API response of the process
-  rate_limits.seven_day.*                 EPOCH SECONDS, unlike the mod's ISO
+  rate_limits.<window>.used_percentage    0-100, one decimal; key absent until
+  rate_limits.<window>.resets_at          the first API response of the process;
+                                          EPOCH SECONDS, unlike the mod's ISO
+  Which windows appear depends on the plan: some report only seven_day.
   context_window.used_percentage
   cost.total_cost_usd
 """
@@ -20,7 +21,13 @@ import sys
 import time
 
 # Mirrors CONFIG in hooks/register.tsx.
-SHOW = {"five_hour": True, "seven_day": False, "context": True, "cost": True}
+#
+# WINDOWS: which quota windows to draw, and what to call each. Every window the
+# engine reports is drawn, in this order -- which plans report which windows is
+# not ours to assume (a plan may report only the weekly one), so pinning a
+# single kind risks a line with no quota on it at all.
+WINDOWS = [("five_hour", "5h"), ("seven_day", "7d"), ("spend_limit", "spend")]
+SHOW = {"windows": True, "context": True, "cost": True}
 WARN_AT = 80
 ALERT_AT = 95
 
@@ -78,14 +85,11 @@ def main():
     cost = payload.get("cost") or {}
 
     parts = []
-    if SHOW["five_hour"]:
-        part = window("5h", limits.get("five_hour"), now)
-        if part:
-            parts.append(part)
-    if SHOW["seven_day"]:
-        part = window("7d", limits.get("seven_day"), now)
-        if part:
-            parts.append(part)
+    if SHOW["windows"]:
+        for kind, tag in WINDOWS:
+            part = window(tag, limits.get(kind), now)
+            if part:
+                parts.append(part)
     if SHOW["context"]:
         pct = context.get("used_percentage")
         if isinstance(pct, (int, float)):
@@ -98,13 +102,17 @@ def main():
     if not parts:
         return 0
 
-    five = limits.get("five_hour") or {}
-    pct = five.get("used_percentage")
+    reported = [
+        limits[kind].get("used_percentage")
+        for kind, _ in WINDOWS
+        if isinstance(limits.get(kind), dict)
+    ]
+    worst = max([p for p in reported if isinstance(p, (int, float))], default=None)
     colour = DIM
-    if isinstance(pct, (int, float)):
-        if pct >= ALERT_AT:
+    if worst is not None:
+        if worst >= ALERT_AT:
             colour = RED
-        elif pct >= WARN_AT:
+        elif worst >= WARN_AT:
             colour = YELLOW
 
     sys.stdout.write("%s%s%s" % (colour, "  ".join(parts), RESET))
