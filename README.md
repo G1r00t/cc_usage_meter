@@ -67,15 +67,29 @@ placeholders.
 
 ## Install
 
-### The status line (works now)
+```sh
+git clone https://github.com/G1r00t/cc_usage_meter.git
+cd cc_usage_meter
+sh scripts/install.sh
+```
 
-Add to `~/.claude/settings.json`:
+That writes two keys into `~/.claude/settings.json`. Those are **user settings**,
+so they apply to every Claude Code session in every directory — one step per
+machine, not per project. It backs the file up first and is safe to re-run (say,
+after moving the clone). To remove it, delete the `statusLine` key.
+
+Keeping it current is `git pull` in the clone: the status line is a fresh process
+on every draw, so it picks up changes with no restart.
+
+The two keys, if you would rather add them by hand:
+
+### The status line (works now)
 
 ```json
 {
   "statusLine": {
     "type": "command",
-    "command": "python3 /Users/rhythmmundra/faltu/cc-usage-meter/statusline/usage-statusline.py"
+    "command": "python3 /ABSOLUTE/PATH/TO/cc_usage_meter/statusline/usage-statusline.py"
   }
 }
 ```
@@ -90,10 +104,10 @@ Point `CLAUDE_CODE_PLUGIN_DIRS` at this folder in the `env` block of
 `~/.claude/settings.json` (user settings only — a project's are never read):
 
 ```json
-{ "env": { "CLAUDE_CODE_PLUGIN_DIRS": "/Users/rhythmmundra/faltu/cc-usage-meter" } }
+{ "env": { "CLAUDE_CODE_PLUGIN_DIRS": "/ABSOLUTE/PATH/TO/cc_usage_meter" } }
 ```
 
-or, for one session, `claude --plugin-dir /Users/rhythmmundra/faltu/cc-usage-meter`.
+or, for one session, `claude --plugin-dir /ABSOLUTE/PATH/TO/cc_usage_meter`.
 
 Whether your build will load it at all:
 
