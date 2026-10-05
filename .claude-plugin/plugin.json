@@ -1,0 +1,10 @@
+{
+  "name": "cc-usage-meter",
+  "version": "0.1.0",
+  "description": "Live usage-quota readout in the right corner of Claude Code's prompt footer",
+  "author": {
+    "name": "Rhythm Mundra",
+    "email": "rhythm@leadbeam.ai"
+  },
+  "types": "./types/index.d.ts"
+}
